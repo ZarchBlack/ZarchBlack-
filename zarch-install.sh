@@ -1032,6 +1032,7 @@ import_chaotic_key() {
 add_temp_repo() {
     sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' /etc/pacman.conf
 
+    # ZarchBlack local repo
     if ! grep -q "\[zarchblack-local\]" /etc/pacman.conf; then
         cat >> /etc/pacman.conf << 'EOF'
 
@@ -1041,6 +1042,34 @@ Server = https://github.com/ZarchBlack/zarchblack-packages/releases/download/rep
 EOF
     fi
 
+    # CachyOS repositories
+    if ! grep -q "\[cachyos\]" /etc/pacman.conf; then
+        pacman-key --recv-key F3B607488DB35A47 --keyserver keyserver.ubuntu.com 2>/dev/null || \
+        pacman-key --recv-key F3B607488DB35A47 --keyserver keys.openpgp.org 2>/dev/null || true
+        pacman-key --lsign-key F3B607488DB35A47 || true
+        pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-keyring-20240331-1-any.pkg.tar.zst' || true
+        pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-mirrorlist-18-1-any.pkg.tar.zst' || true
+        pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-v3-mirrorlist-18-1-any.pkg.tar.zst' || true
+        cat >> /etc/pacman.conf << 'EOF'
+
+[cachyos-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos-core-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos-extra-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos]
+Include = /etc/pacman.d/cachyos-mirrorlist
+EOF
+    fi
+
+    # Chaotic-AUR
     if ! grep -q "\[chaotic-aur\]" /etc/pacman.conf; then
         import_chaotic_key
         pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' || true
@@ -1094,6 +1123,7 @@ install_base_system() {
 add_repos() {
     sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' "$MOUNTPOINT/etc/pacman.conf"
 
+    # ZarchBlack local repo
     if ! grep -q "\[zarchblack-local\]" "$MOUNTPOINT/etc/pacman.conf"; then
         cat >> "$MOUNTPOINT/etc/pacman.conf" << 'EOF'
 
@@ -1103,17 +1133,50 @@ Server = https://github.com/ZarchBlack/zarchblack-packages/releases/download/rep
 EOF
     fi
 
+    # CachyOS repositories
+    if ! grep -q "\[cachyos\]" "$MOUNTPOINT/etc/pacman.conf"; then
+        local cachyos_keyid="F3B607488DB35A47"
+        for ks in keyserver.ubuntu.com keys.openpgp.org pgp.mit.edu; do
+            arch-chroot "$MOUNTPOINT" pacman-key --recv-key "$cachyos_keyid" \
+                --keyserver "$ks" 2>/dev/null && break
+        done
+        arch-chroot "$MOUNTPOINT" pacman-key --lsign-key "$cachyos_keyid" || true
+        arch-chroot "$MOUNTPOINT" pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-keyring-20240331-1-any.pkg.tar.zst' || true
+        arch-chroot "$MOUNTPOINT" pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-mirrorlist-18-1-any.pkg.tar.zst' || true
+        arch-chroot "$MOUNTPOINT" pacman -U --noconfirm \
+            'https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-v3-mirrorlist-18-1-any.pkg.tar.zst' || true
+        cat >> "$MOUNTPOINT/etc/pacman.conf" << 'EOF'
+
+[cachyos-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos-core-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos-extra-v3]
+Include = /etc/pacman.d/cachyos-v3-mirrorlist
+
+[cachyos]
+Include = /etc/pacman.d/cachyos-mirrorlist
+EOF
+    fi
+
+    # Chaotic-AUR
     if ! grep -q "\[chaotic-aur\]" "$MOUNTPOINT/etc/pacman.conf"; then
         local keyid="3056513887B78AEB"
         for ks in keyserver.ubuntu.com keys.openpgp.org pgp.mit.edu; do
-            arch-chroot "$MOUNTPOINT" pacman-key --recv-key "$keyid" --keyserver "$ks" 2>/dev/null && break
+            arch-chroot "$MOUNTPOINT" pacman-key --recv-key "$keyid" \
+                --keyserver "$ks" 2>/dev/null && break
         done
         arch-chroot "$MOUNTPOINT" pacman-key --lsign-key "$keyid" || true
         arch-chroot "$MOUNTPOINT" pacman -U --noconfirm \
             'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' || true
         arch-chroot "$MOUNTPOINT" pacman -U --noconfirm \
             'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst' || true
-        echo -e '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist' >> "$MOUNTPOINT/etc/pacman.conf"
+        echo -e '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist' \
+            >> "$MOUNTPOINT/etc/pacman.conf"
     fi
 
     apply_parallel_downloads "$MOUNTPOINT/etc/pacman.conf"
